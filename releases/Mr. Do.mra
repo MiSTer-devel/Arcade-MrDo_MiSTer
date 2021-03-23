@@ -6,7 +6,7 @@
   <year>1982</year>
   <manufacturer>Universal</manufacturer>
   <category>Platform</category>
-  <rbf>MrDo</rbf>
+  <rbf>MrDo_20210323</rbf>
 
   <buttons names="Jump,Start 1P,Start 2P,Coin,Test" default="A,Start,Select,R,L" />
 
