@@ -152,7 +152,7 @@ assign {FB_PAL_CLK, FB_FORCE_BLANK, FB_PAL_ADDR, FB_PAL_DOUT, FB_PAL_WR} = '0;
 
 wire [1:0] aspect_ratio = status[2:1];
 wire orientation = status[3];
-wire [1:0] scan_double = status[6:4];
+wire [2:0] scan_lines = status[6:4];
 
 assign VIDEO_ARX = (!aspect_ratio) ? (orientation  ? 8'd4 : 8'd3) : (aspect_ratio - 1'd1);
 assign VIDEO_ARY = (!aspect_ratio) ? (orientation  ? 8'd3 : 8'd4) : 12'd0;
@@ -345,7 +345,7 @@ arcade_video #(240,12) arcade_video
         .HSync(hsync),
         .VSync(vsync),
 
-        .fx(scan_double)
+        .fx(scan_lines)
 );
 
 wire reset;
@@ -1092,6 +1092,7 @@ T80pa u_cpu(
 
 reg [7:0] sound1_out;
 reg [7:0] sound2_out;
+wire [8:0] sound_mix = sound1_out + sound2_out;
 
 reg sound1_wr;
 reg sound1_en ;
@@ -1099,10 +1100,10 @@ reg sound1_en ;
 reg sound2_wr;
 reg sound2_en ;
 
-// Mr. Do is not stereo.  Sound should be added together and /2.  separate for debugging.
+// Mr. Do is not stereo.  Sound should be added together and /2. 
 
-assign AUDIO_L = {sound1_out,sound1_out};
-assign AUDIO_R = {sound2_out,sound2_out};
+assign AUDIO_L = {sound_mix[8:1],sound_mix[8:1]};
+assign AUDIO_R = {sound_mix[8:1],sound_mix[8:1]};
 
 assign AUDIO_S = 0; // unsigned PCM
 
@@ -1111,6 +1112,7 @@ SN76496 sound1( clk_4M, clk_4M, reset, sound1_en, sound1_wr, cpu_dout, 4'b1111, 
 SN76496 sound2( clk_4M, clk_4M, reset, sound2_en, sound2_wr, cpu_dout, 4'b1111, sound2_out );
 
 
+// cpu rom C4
 wire a4_cs = (ioctl_addr[15:13] == 3'b000);
 
 rom_8k	cpu01rom_a4 (
@@ -1124,6 +1126,7 @@ rom_8k	cpu01rom_a4 (
 	.q ( cpu01rom_data )
 	);
 
+// cpu rom C4
 wire c4_cs = (ioctl_addr[15:13] == 3'b001);
 
 rom_8k	cpu01rom_c4 (
@@ -1136,14 +1139,8 @@ rom_8k	cpu01rom_c4 (
 	.rdaddress ( cpu_addr[12:0] ),
 	.q ( cpu02rom_data )
 	);
-    
-//// cpu rom C4
-//cpu02_rom cpu02rom_inst (
-//    .address ( cpu_addr[12:0] ),
-//    .clock ( ~clk_4M ),
-//    .q ( cpu02rom_data )
-//    );
-
+   
+// cpu rom E4
 wire e4_cs = (ioctl_addr[15:13] == 3'b010);
 
 rom_8k	cpu01rom_e4 (
@@ -1157,13 +1154,7 @@ rom_8k	cpu01rom_e4 (
 	.q ( cpu03rom_data )
 	);
     
-//// cpu rom E4
-//cpu03_rom cpu023om_inst (
-//    .address ( cpu_addr[12:0] ),
-//    .clock ( ~clk_4M ),
-//    .q ( cpu03rom_data )
-//    );
-
+// cpu rom F4
 wire f4_cs = (ioctl_addr[15:13] == 3'b011);
 
 rom_8k	cpu01rom_f4 (
@@ -1177,12 +1168,6 @@ rom_8k	cpu01rom_f4 (
 	.q ( cpu04rom_data )
 	);
     
-//// cpu rom F4
-//cpu04_rom cpu04rom_inst (
-//    .address ( cpu_addr[12:0] ),
-//    .clock ( ~clk_4M ),
-//    .q ( cpu04rom_data )
-//    );    
     
 cpu_ram    cpu_ram_inst (
     .address ( cpu_addr[11:0] ),
@@ -1268,12 +1253,6 @@ ram_dp_1k spr_ram (
 	);
     
 // foreground tile bitmap S8   
-//gfx_s8    gfx_s8_inst (
-//    .clock ( ~clk_10M ),
-//    .address ( fg_bitmap_addr ),
-//    .q ( s8_data )
-//);
-
 wire s8_cs = (ioctl_addr[15:12] == 4'b1000);
 
    
@@ -1289,12 +1268,6 @@ rom_4k gfx_s8 (
 	);
 
 // foreground tile bitmap u8  
-//gfx_u8    gfx_u8_inst (
-//    .clock (  ~clk_10M ),
-//    .address ( fg_bitmap_addr ),
-//    .q ( u8_data )
-//    );
-
 wire u8_cs = (ioctl_addr[15:12] == 4'b1001);
 
 rom_4k gfx_u8 (
@@ -1310,12 +1283,6 @@ rom_4k gfx_u8 (
 
     
 // background tile bitmap r8
-//gfx_r8 gfx_r8_inst (
-//    .clock ( ~clk_10M ),
-//    .address ( bg_bitmap_addr ),
-//    .q ( r8_data )
-//);
-
 wire r8_cs = (ioctl_addr[15:12] == 4'b1010);
 
 rom_4k gfx_r8 (
@@ -1331,12 +1298,6 @@ rom_4k gfx_r8 (
     
     
 // background tile bitmap n8
-//gfx_n8 gfx_n8_inst (
-//    .clock ( ~clk_10M ),
-//    .address ( bg_bitmap_addr ),
-//    .q ( n8_data )
-//);
-
 wire n8_cs = (ioctl_addr[15:12] == 4'b1011);
 
 rom_4k gfx_n8 (
@@ -1351,12 +1312,6 @@ rom_4k gfx_n8 (
 	);
     
 // sprite bitmap h5
-//gfx_h5 gfx_h5_inst (
-//    .clock ( ~clk_10M ),
-//    .address ( spr_bitmap_addr ),
-//    .q ( h5_data )
-//);
-
 wire h5_cs = (ioctl_addr[15:12] == 4'b1100);
 
 rom_4k gfx_h5 (
@@ -1371,12 +1326,6 @@ rom_4k gfx_h5 (
 	);
 
 // sprite bitmap k5
-//gfx_k5 gfx_k5_inst (
-//    .clock ( ~clk_10M ),
-//    .address ( spr_bitmap_addr ),
-//    .q ( k5_data )
-//);
-    
 wire k5_cs = (ioctl_addr[15:12] == 4'b1101);
 
 rom_4k gfx_k5 (
@@ -1391,14 +1340,6 @@ rom_4k gfx_k5 (
 	);
     
 // palette high bits
-//pal_rom_u02    pal_rom_u02_inst (
-//    .address_a ( fg_pal_ofs_hi ),
-//    .address_b (  ),
-//    .clock ( ~clk_10M ),
-//    .q_a ( fg_pal_data_high ),
-//    .q_b (  )
-//    );
-
 wire u02_cs = (ioctl_addr[15:5] == 11'b11100000000 );
 
 rom_32b	pal_rom_u2 (
@@ -1414,14 +1355,6 @@ rom_32b	pal_rom_u2 (
 
 
 // palette low bits
-//pal_rom_t02    pal_rom_t02_inst (
-//    .address_a ( fg_pal_ofs_low ),
-//    .address_b (  ),
-//    .clock ( ~clk_10M ),
-//    .q_a ( fg_pal_data_low ),
-//    .q_b (  )
-//    );
-
 wire t02_cs = (ioctl_addr[15:5] == 11'b11100000001 );
 
 rom_32b	pal_rom_t2 (
@@ -1436,12 +1369,6 @@ rom_32b	pal_rom_t2 (
 	);
     
 // sprite palette lookup F10
-//pal_rom_f10	pal_rom_f10_inst (
-//	.address ( f10_addr ),
-//	.clock ( ~clk_10M ),
-//	.q ( f10_data )
-//	);
-
 wire f10_cs = (ioctl_addr[15:5] == 11'b11100000010 );
 
 rom_32b	pal_rom_f10 (

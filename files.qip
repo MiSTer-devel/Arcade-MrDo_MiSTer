@@ -1,6 +1,4 @@
 set_global_assignment -name SYSTEMVERILOG_FILE Arcade-MrDo.sv
-set_global_assignment -name VERILOG_FILE rtl/lfsr.v
-set_global_assignment -name SYSTEMVERILOG_FILE rtl/cos.sv
 set_global_assignment -name SDC_FILE Arcade-MrDo.sdc
 set_global_assignment -name VERILOG_FILE rtl/SN76496.v
 set_global_assignment -name VHDL_FILE rtl/t80/T80_Reg.vhd
