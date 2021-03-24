@@ -160,7 +160,6 @@ assign VIDEO_ARY = (!aspect_ratio) ? (orientation  ? 8'd3 : 8'd4) : 12'd0;
 `include "build_id.v" 
 localparam CONF_STR = {
 	"A. Mr Do!;;",
-    "F,rom;",
 	"O12,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"O3,Orientation,Vert,Horz;",
 	"O46,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
