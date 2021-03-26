@@ -36,21 +36,12 @@ parameter V_TOTAL      = 262;
 reg [9:0] sx;
 reg [9:0] sy;
 
-//always @ (posedge clk_pix) begin
-//    // vsync active low
-//    if ( v >= VBLANK_START || v < VBLANK_END ) begin
-//        vbl <= 1;
-//    end else begin
-//        vbl <= 0;
-//    end
-//end
 
 always @ (posedge clk_pix) begin
     hsync <= ~(sx >= HSYNC_START && sx < HSYNC_END);  // invert: negative polarity
     vsync <= ~(sy >= VSYNC_START && sy < VSYNC_END);  // invert: negative polarity
     
-    de <=  1;//( sy < VERT_ACTIVE_END && sx < HORZ_ACTIVE_END ) ;
-    // adjust de for 1 pixel latency.  character data is not displayed until on pix_clk after begin read
+    de <=  1;
 end
 
 always @ (posedge clk_pix) begin
@@ -88,50 +79,6 @@ always @ (posedge clk_pix) begin
     v <= sy[7:0];
     
 end
-    // calculate horizontal and vertical screen position
-//always @ (posedge clk_pix) begin
-//    if (reset) begin
-//        vx <= 0;
-//        vy <= 0;
-//        
-//        hbl <= 1;
-//        vbl <= 1;
-//
-//        hx <= 0;
-//        hff <= 0;
-//        
-//        // h counter reset alternate between 200 and 0.  (256-200)=56 pix + 256 = 312
-//        h <= 200; 
-//        // v counter reset alternate between 22 and 16.  (256-234)=22 pix + (256-16)=240 = 262
-//        v <= 234;
-//    end else if ( h == 256 ) begin
-//        if ( hx == 0 ) begin
-//            h <= 0;
-//            hx <= 1;
-//        end else begin
-//            hbl <= 1;
-//            h <= 200; // 56 more clocks
-//            hx <= 0;
-//            if ( v == 256 ) begin
-//                if ( vy == 0 ) begin
-//                    v <= 16;
-//                    vy = 1;
-//                    vbl <= 0;
-//                end else begin
-//                    v <= 234;
-//                    vy <= 0;
-//                    vbl <= 1;
-//                end
-//            end else begin
-//                v <= v + 1;
-//            end
-//        end
-//    end else begin
-//        if ( h == HBLANK_END ) begin // 16
-//            hbl <= 0;
-//        end
-//        h <= h + 1;
-//    end
-//end
+  
 
 endmodule

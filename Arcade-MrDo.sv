@@ -507,9 +507,6 @@ reg [7:0] bg_attr_reg;
 reg [4:0] fg_pal_ofs_hi ;
 reg [4:0] fg_pal_ofs_low ;
 
-//reg [4:0] bg_pal_ofs_hi ;
-//reg [4:0] bg_pal_ofs_low ;
-
 reg [4:0] sp_pal_ofs_hi ;
 reg [4:0] sp_pal_ofs_low ;
 
@@ -948,7 +945,7 @@ always @ (posedge clk_5M ) begin
         if ( draw ) begin
             rgb_out <= { fg_red[7:4], fg_green[7:4], fg_blue[7:4] };
         end else begin
-            rgb_out <= 0;
+            rgb_out <= {unhandled_addr,8'h00};
         end
 
     end else begin
@@ -957,45 +954,63 @@ always @ (posedge clk_5M ) begin
     end
 end    
 
+reg [15:0] unhandled_addr ;
+
 
 always @ (posedge clk_4M ) begin
     
     if ( rd_n == 0 ) begin
-        // read program rom
+               // read program rom
         if (cpu_addr == 16'h049a ) begin
             // patch rom to bypass "secret" pal protection
             // cpu tries to read val from 0x9803 which is state machine pal
             // written to on all tile ram access. should try converting pal logic to verilog.
             cpu_din <= 0;
-        end else begin
-            case ( cpu_addr[15:13])
-                3'b000 : cpu_din <= cpu01rom_data ; // 0x0000
-                3'b001 : cpu_din <= cpu02rom_data ; // 0x2000
-                3'b010 : cpu_din <= cpu03rom_data ; // 0x4000
-                3'b011 : cpu_din <= cpu04rom_data ; // 0x6000
-            endcase
-        end
-        
-        if ( cpu_addr[15:12] == 4'h8 ) begin
-            case ( cpu_addr[11:10] )
-                6'b00 :  cpu_din <= bg_ram0_data;
-                6'b01 :  cpu_din <= bg_ram1_data;
-                6'b10 :  cpu_din <= fg_ram0_data;
-                6'b11 :  cpu_din <= fg_ram1_data;
-            endcase 
-        end 
-        
-        case ( cpu_addr[15:0])
-            16'ha000 : cpu_din <= p1;
-            16'ha001 : cpu_din <= p2;
-            16'ha002 : cpu_din <= dsw1; // ("DSW1");
-            16'ha003 : cpu_din <= dsw2; // ("DSW2");
-        endcase
-        
-        // read ram
-        if ( cpu_addr[15:12] == 14 ) begin
+        end else if ( cpu_addr >= 16'h0000 && cpu_addr < 16'h2000 ) begin
+            cpu_din <= cpu01rom_data ; // 0x0000
+            
+        end else if ( cpu_addr >= 16'h2000 && cpu_addr < 16'h4000 ) begin    
+            cpu_din <= cpu02rom_data ; // 0x2000
+            
+        end else if ( cpu_addr >= 16'h4000 && cpu_addr < 16'h6000 ) begin               
+            cpu_din <= cpu03rom_data ; // 0x4000
+            
+        end else if ( cpu_addr >= 16'h6000 && cpu_addr < 16'h8000 ) begin                   
+            cpu_din <= cpu04rom_data ; // 0x6000
+            
+        end else if ( cpu_addr >= 16'h8000 && cpu_addr < 16'h8400 ) begin   
+            cpu_din <= bg_ram0_data;
+            
+        end else if ( cpu_addr >= 16'h8400 && cpu_addr < 16'h8800 ) begin    
+            cpu_din <= bg_ram1_data;
+            
+        end else if ( cpu_addr >= 16'h8800 && cpu_addr < 16'h8c00 ) begin   
+            cpu_din <= fg_ram0_data;
+            
+        end else if ( cpu_addr >= 16'h8c00 && cpu_addr < 16'h9000 ) begin   
+            cpu_din <= fg_ram1_data;
+
+        end else if ( cpu_addr == 16'h9803 ) begin   
+            cpu_din <= 0;
+            
+        end else if ( cpu_addr == 16'ha000 ) begin   
+            cpu_din <= p1;
+            
+        end else if ( cpu_addr == 16'ha001 ) begin
+            cpu_din <= p2;
+            
+        end else if ( cpu_addr == 16'ha002 ) begin   
+            cpu_din <= dsw1;
+            
+        end else if ( cpu_addr == 16'ha003 ) begin           
+            cpu_din <= dsw2;
+            
+        end else if ( cpu_addr >= 16'he000 && cpu_addr < 16'hf000 ) begin   
             cpu_din <= cpu_ram_data;
-        end 
+            
+        end else begin
+            unhandled_addr <= cpu_addr;
+        end
     end else begin
     
         if ( cpu_addr[15:12] == 4'he ) begin
@@ -1059,7 +1074,7 @@ wire rd_n;
 
 reg vert_int_n;
 always @ (posedge clk_4M ) begin
-    vert_int_n <= (v < 200 || v > 201 );
+    vert_int_n <= (v !== 200 ) ;
 end
     
 T80pa u_cpu(
