@@ -21,7 +21,7 @@
     <dip bits="12,15" name="Slot A (Coins/Cred" ids="Free, 1/1, 1/1, 1/1, 1/1, 1/1, 4/1, 3/2, 3/1, 2/3, 2/1, 1/5, 1/4, 1/3, 1/2, 1/1"/>    
   </switches>
     
-  <rom index="0" zip="mrdofix.zip" md5="none">
+  <rom index="0" zip="mrdofix.zip|mrdo.zip" type="merged" md5="none">
         <part crc="3dcd9359" name="d1"/>
         <part crc="710058d8" name="d2"/>
         <part crc="3a7d039b" name="dofix.d3"/>
