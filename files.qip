@@ -9,9 +9,9 @@ set_global_assignment -name VHDL_FILE rtl/t80/T80pa.vhd
 set_global_assignment -name VERILOG_FILE rtl/video_timing.v
 set_global_assignment -name CDF_FILE jtag.cdf
 set_global_assignment -name QIP_FILE sys/sys.qip
-set_global_assignment -name QIP_FILE rtl/cpu_ram.qip
+set_global_assignment -name QIP_FILE rtl/ram_dp_4k.qip
 set_global_assignment -name QIP_FILE rtl/ram_dp_1k.qip
 set_global_assignment -name QIP_FILE rtl/rom_8k.qip
 set_global_assignment -name QIP_FILE rtl/rom_32b.qip
 set_global_assignment -name QIP_FILE rtl/rom_4k.qip
-
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/hiscore.sv"

@@ -8,7 +8,7 @@
   <category>Platform</category>
   <rbf>MrDo</rbf>
 
-  <buttons names="Jump,Start 1P,Start 2P,Coin,Test" default="A,Start,Select,R,L" />
+  <buttons names="Jump,Start 1P,Start 2P,Coin,Pause" default="A,Start,Select,R,L" />
 
   <switches default="FF,FF">
     <dip bits="0,1" name="Difficulty" ids="Hardest, Hard, Medium, Easy"/>
@@ -39,4 +39,11 @@
         <part crc="badf5876" name="j2-u001.bin"/>
         <patch offset="0x049a"> 00 </patch>
   </rom>
+  <rom index="3" md5="none">
+    <part>
+    00 00 FF FF 00 FF 00 02 00 02 00 02 00 FF 00 00
+    00 00 E0 17 64 01 00 00
+    </part>
+  </rom>
+  <nvram index="4" size="100"/>
 </misterromdescription>
