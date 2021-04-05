@@ -349,6 +349,7 @@ reg [7:0] p1 ;
 reg [7:0] p2;
 reg [7:0] dsw1 ;
 reg [7:0] dsw2 ;
+reg user_flip;
 
 always @ (posedge clk_4M ) begin
     p1 <= ~{ 1'b0, b_start2, b_start1, b_fire, b_up, b_right, b_down, b_left };
@@ -356,6 +357,8 @@ always @ (posedge clk_4M ) begin
     
     dsw1 <= sw[0];
     dsw2 <= sw[1];
+    
+    user_flip <= sw[2][0]; // not in original hardware.
 end
 
 hps_io #(.STRLEN($size(CONF_STR)>>3)) hps_io
@@ -393,6 +396,12 @@ reg ce_pix;
 
 wire hbl;
 wire vbl;
+wire hx;
+wire hff;
+
+wire hbl_hx;
+assign hbl_hx = hbl | hx;
+
 wire hsync;
 wire vsync;
 
@@ -410,7 +419,7 @@ arcade_video #(240,12) arcade_video
         .ce_pix(clk_5M),
 
         .RGB_in(rgb_out),
-        .HBlank(hbl),
+        .HBlank(hbl_hx),
         .VBlank(vbl),
         .HSync(hsync),
         .VSync(vsync),
@@ -422,23 +431,30 @@ wire reset;
 assign reset = RESET | status[0] | ioctl_download | buttons[1];
 wire rom_download = ioctl_download && !ioctl_index;
 
-wire hff;
+
 
 video_timing video_timing (
-    .clk_pix(~clk_5M),
-    .reset(reset),    
-    
-    .h(h),
-    .v(v),
-    
+    .clk(~clk_5M),   // pixel clock
+    .reset(reset),     // reset
+
+    .h(h),  // { hd', hc', hb', ha', hd, hc, hb, ha }  
+    .v(v),  // { vd', vc', vb', va', vd, vc, vb, va }  
+
     .hbl(hbl),
+//    output      hbl_n,    
     .hff(hff),
+    .hx(hx),
+//    output      hx_n,
     .vbl(vbl),
-  
-    .hsync(hsync),
-    .vsync(vsync)
-    );
+//    output reg  vbl_n,
+//    output reg  vbls,
+//    output reg  vbls_n,
     
+    .hsync(hsync),     
+    .vsync(vsync)   
+    );
+
+  
 wire [7:0] s8_data;
 wire [7:0] u8_data;
 
@@ -488,9 +504,7 @@ reg [7:0] fg_shift_1;
 reg [7:0] bg_shift_0;
 reg [7:0] bg_shift_1;
 
-reg [8:0] fg_tile;
 reg [7:0] fg_attr;
-reg [8:0] bg_tile;
 reg [7:0] bg_attr;
 
 reg [11:0] fg_bitmap_addr;
@@ -581,9 +595,10 @@ reg [4:0] sp_pal_ofs_hi ;
 reg [4:0] sp_pal_ofs_low ;
 
 reg [7:0] bg_scroll_y;
+reg [7:0] bg_scroll_x;
 
 wire [7:0] bg_scroll;
-assign bg_scroll = v + bg_scroll_y;
+assign bg_scroll = user_flip ? (v + ~bg_scroll_y) : v + bg_scroll_y;
 
 //// ---------- sprites ----------
 reg spr_ram_wr;   
@@ -622,7 +637,7 @@ reg [7:0] f8_count;
 reg [3:0] g8_buf[256];
 reg [7:0] g8_count;
 
-reg [7:0] pad ;
+reg [1:0] pad ;
 reg [1:0] pic ;
 reg [7:0] h10 ; // counter h10 LS393 drives timing prom J10
 reg [3:0] k6;
@@ -633,15 +648,15 @@ reg dec_a9;
 wire sp_bank = ( sprite_tile[6] == 1 );
 wire flip_x  = ( sprite_color[4] == 1 );
 wire flip_y  = ( sprite_color[5] == 1 );
-reg flip_screen;
+reg cocktail_flip;
 
 // hbl is made 64 clocks
 always @ (posedge clk_10M) begin
-    if ( hbl ) begin
+    if ( hbl_hx ) begin
         // clocked on the rising edge of HA. ie h[0]
         if ( clk_5M == 1 && h[0] == 1 ) begin
             // if tile is visible and still room in address stack
-            if ( j7[7:4] == 0 && a9 < 15 && h < 8'hff) begin
+            if ( j7[7:4] == 0 && a9 < 15 ) begin
                 sp_addr_cache[a9][5:0] <= a7;
                 a9 <= a9 + 1;
             end 
@@ -699,6 +714,8 @@ always @ ( posedge clk_10M ) begin // neg
         // get one clock early.  not sure this works.
         f10_addr <= {sprite_color[2:0], k6[1], j6[1]};
     end
+
+
     
     // counters are always cleared during hbl
     // one will free count and the other will count the x offset in the current blitter
@@ -710,13 +727,15 @@ always @ ( posedge clk_10M ) begin // neg
         // mux G9 gives LA4 ( L9 nand pad 1+0 ) to F8 or G8 load line
         // load one from sprite x pos, increment the other
         if ( v[0] == 1 ) begin
-            //f8_count <= sprite_x;
             f8_count <= spr_ram_data ;
-            g8_count <= g8_count + 1;
+            if ( clk_5M == 1 ) begin
+                g8_count <= g8_count + 1;
+            end
         end else begin
-            //g8_count <= sprite_x;
             g8_count <= spr_ram_data ;
-            f8_count <= f8_count + 1;
+            if ( clk_5M == 1 ) begin
+                f8_count <= f8_count + 1;
+            end
         end
     end else begin 
         // increment both
@@ -724,15 +743,20 @@ always @ ( posedge clk_10M ) begin // neg
             if ( sprite_valid ) begin
                 f8_count <= f8_count + 1;
             end
-            g8_count <= g8_count + 1;
+            if ( clk_5M == 1 ) begin
+                g8_count <= g8_count + 1;
+            end
         end else begin
             if ( sprite_valid ) begin
                 g8_count <= g8_count + 1;
             end
-            f8_count <= f8_count + 1;
+            if ( clk_5M == 1 ) begin
+                f8_count <= f8_count + 1;
+            end
         end
     end
 end
+
 
 always @ ( posedge clk_10M ) begin
     // odd / even lines each have their own sprite line buffer
@@ -748,13 +772,14 @@ always @ ( posedge clk_10M ) begin
                 end
             end
         end
-        if ( clk_5M == 0 ) begin
-            // hack. buffer on pcb is cleared by pull-downs on the output bus
-            // the ram we is asserted after the output is latched then the zero value is written on the opposite 10MHz edge.
-            // address clock on the streaming buffer is at 5M.  It writes 0 when the clock is low
-            g8_buf[h-1][3:0] <= 0;
-        end
         
+        // buffer on pcb is cleared by pull-downs on the output bus
+        // the ram we is asserted after the output is latched then the zero value is written on the opposite 10MHz edge.
+        // address clock on the streaming buffer is at 5M.  It writes when the clock is high because clock gets inverted by L9
+        
+        if ( clk_5M == 1 && ~hbl_hx ) begin
+            g8_buf[g8_count_flip][3:0] <= 0;
+        end
     end else begin
         if ( k6[0] | j6[0] ) begin
             if ( sprite_valid ) begin
@@ -766,29 +791,52 @@ always @ ( posedge clk_10M ) begin
                 end
             end
         end
-
-        if ( clk_5M == 0  ) begin
-            // same as g8 above
-            f8_buf[h-1][3:0] <= 0;
+        if ( clk_5M == 1 && ~hbl_hx ) begin
+            f8_buf[f8_count_flip][3:0] <= 0;
         end
         
     end
+end
+
+reg [4:0] spr_pal_ofs_hi;
+reg [4:0] spr_pal_ofs_low;
+
+wire [7:0] g8_count_flip;
+assign g8_count_flip = user_flip ? ~g8_count : g8_count;
+
+wire [7:0] f8_count_flip;
+assign f8_count_flip = user_flip ? ~f8_count : f8_count;
+
+// sprite buffer handling
+always @ (posedge clk_10M) begin   
+    if ( clk_5M == 0 ) begin
+        // default to clear
+        spr_pal_ofs_hi <= 0;
+        spr_pal_ofs_low <= 0;
+        
+        if ( v[0] == 1 && g8_buf[g8_count_flip] > 0 ) begin
+            spr_pal_ofs_hi  <= { 1'b0, g8_buf[g8_count_flip] };
+            spr_pal_ofs_low <= { 1'b0, g8_buf[g8_count_flip][3:2], g8_buf[g8_count_flip][1:0] };
+        end 
+        if ( v[0] == 0 && f8_buf[f8_count_flip] > 0 ) begin
+            spr_pal_ofs_hi  <= { 1'b0, f8_buf[f8_count_flip] };
+            spr_pal_ofs_low <= { 1'b0, f8_buf[f8_count_flip][3:2], f8_buf[f8_count_flip][1:0] };
+        end
+    end 
 end
 
 always @ (posedge clk_10M) begin     // neg   
     // data in spr_ram_data
     // { pad[7:2], pad[1:0] } on the schematic.  pad counter
     // is h counter really reset and the same time as pad counter (A7)?
-    if ( hbl ) begin
+    if ( hbl_hx ) begin
         // 64 cycles of checking if y active and storing a7 if it is
         spr_addr <= { a7[5:0], 2'b01 };  // only y
     end else begin
-        //spr_addr <= { 6'b0, pad[1:0] };  // only y 63-0
-        //spr_addr <= { sp_addr_cache[3][5:0], pad[1:0] };  // only y 63-0
         spr_addr <= { sp_addr_cache[a9], pad[1:0] };  // only y 63-0
     end
     
-    if ( ~hbl ) begin
+    if ( ~hbl_hx ) begin
     
         // set the current position into the bitmap rom based on the tile, 
         // y offset and bitmap byte offset
@@ -801,7 +849,7 @@ always @ (posedge clk_10M) begin     // neg
                 spr_bitmap_addr <= { sprite_tile[5:0], sprite_y[3:0], ~pic[1:0] } ; 
             end
          end else begin
-            if ( flip_x == 0 ) begin
+            if (  flip_x == 0 ) begin
                 spr_bitmap_addr <= { sprite_tile[5:0], ~sprite_y[3:0], pic[1:0] } ; 
             end else begin
                 spr_bitmap_addr <= { sprite_tile[5:0], ~sprite_y[3:0], ~pic[1:0] } ; 
@@ -812,121 +860,101 @@ always @ (posedge clk_10M) begin     // neg
 end
 
 // sprites are added to a visible list during the hblank of the previous line
-wire [7:0]j7 = spr_ram_data + (v+1);
+wire [7:0]j7 = user_flip ? (spr_ram_data + ~(v+1)) : spr_ram_data + (v+1);
 
 always @ (posedge clk_10M) begin
 
     // J10 logic
-    if ( ~hbl ) begin
-        // 8 clocks per sprite
-        // even is falling 5M clk
-        case ( h10[4:0] )
-            0:  begin
-                    pad <= 2'b00;
-                    pic <= 2'b00;
-                    load_shift <= 0;
-                end
-            2:  begin
-                    sprite_tile <= spr_ram_data;
-                    //sprite_tile <= 8'h06;
-                    pad <= 2'b01;
-                end
-            4:  begin
-                    sprite_y <= j7;//spr_ram_data + v ; 
+    // 8 clocks per sprite
+    // even is falling 5M clk
+    // timing altered from prom to deal with async/sync differences 
+    case ( h10[4:0] )
+        0:  begin
+                pad <= 2'b00;
+                pic <= 2'b00;
+                load_shift <= 0;
+            end
+        2:  begin
+                sprite_tile <= spr_ram_data;
+                //sprite_tile <= 8'h06;
+                pad <= 2'b01;
+            end
+        4:  begin
+                sprite_y <= j7; // spr_ram_data + v ; 
 
-                    if ( spr_ram_data !== 0 && j7 < 16 ) begin
-                        sprite_valid <= 1;
-                    end else begin
-                        sprite_valid <= 0;
-                    end
-                    pad <= 2'b10;
+                if ( spr_ram_data !== 0 && j7 < 16 ) begin
+                    sprite_valid <= 1;
+                end else begin
+                    sprite_valid <= 0;
                 end
-            6:  begin
-                    sprite_color <= spr_ram_data ;
-                    //sprite_color <= 8'h02 ;
-                    pad <= 2'b11;
-                end
-            8:  begin
-                    sprite_x <= spr_ram_data ;
-                    //sprite_x <= 8'h68 ;
+                pad <= 2'b10;
+            end
+        6:  begin
+                sprite_color <= spr_ram_data ;
+                pad <= 2'b11;
+            end
+        8:  begin
+                sprite_x <= spr_ram_data ;
 //                    pad <= 2'b00; // different than prom value
-                end
-            10: begin
-                    // this should be at 8
-                    pad <= 2'b00;            
-                    load_shift <= 1;
-                end
-            11: begin
-                    load_shift <= 0;
-                    pic <= 2'b01;
-                end
-            14: begin
-                    load_shift <= 1;
-                end
-            15: begin
-                    load_shift <= 0;
-                    pic <= 2'b10;
-                end
-            18: begin
-                    load_shift <= 1;
-                end
-            19: begin
-                    load_shift <= 0;
-                    pic <= 2'b11;
-                end
-            22: begin
-                    load_shift <= 1;
-                end
-            23: begin
-                    load_shift <= 0;
-                end
-            26: begin
-                    dec_a9 <= 1;
-                end
-            27: begin
-                    dec_a9 <= 0;
-                    pic <= 2'b00;
-                                    
-                end
-        endcase
-    end
+            end
+        9:  begin
+                load_shift <= 1; 
+            end
+        10: begin
+                        load_shift <= 0;
+                // this should be at 8
+                pad <= 2'b00;            
+            end
+        11: begin
+                pic <= 2'b01;
+            end
+        13: begin
+                load_shift <= 1; 
+            end
+        14: begin
+                load_shift <= 0; 
+            end
+        15: begin
+                pic <= 2'b10;
+            end
+        17: begin
+                load_shift <= 1; 
+            end
+        18: begin
+                load_shift <= 0; 
+            end
+        19: begin
+                pic <= 2'b11;
+            end
+        21: begin
+                load_shift <= 1;
+            end
+        22: begin
+                  load_shift <= 0;
+            end
+        26: begin
+                dec_a9 <= 1;
+            end
+        27: begin
+                dec_a9 <= 0;
+                pic <= 2'b00;
+            end
+    endcase
+
 end   
 
 reg draw;
 
-reg [3:0] spr_pal_ofs_hi_1 ;
-reg [3:0] spr_pal_ofs_low_1 ;
 
-reg [3:0] spr_pal_ofs_hi_2 ;
-reg [3:0] spr_pal_ofs_low_2 ;
-
-    // tiles
 always @ (posedge clk_10M) begin   
     if ( clk_5M == 1 ) begin
-        // sprite
         // load palette - calculate rom offsets
         // check if bg or fg asserted priority
 
-        // register the sprite output or it will be off by one since the tiles are registered.
-        spr_pal_ofs_hi_2 <= spr_pal_ofs_hi_1;
-        spr_pal_ofs_low_2 <= spr_pal_ofs_low_1;
-        
-        if ( ( v[0] == 1 && g8_buf[h] > 0) || (v[0] == 0 && f8_buf[h] > 0) ) begin
-            if ( v[0] == 1 ) begin
-                spr_pal_ofs_hi_1  <= { 1'b0, g8_buf[h] };
-                spr_pal_ofs_low_1 <= { 1'b0, g8_buf[h][3:2], g8_buf[h][1:0] };
-            end else begin
-                spr_pal_ofs_hi_1  <= { 1'b0, f8_buf[h] };
-                spr_pal_ofs_low_1 <= { 1'b0, f8_buf[h][3:2], f8_buf[h][1:0] };
-            end
-        end else begin
-            spr_pal_ofs_hi_1 <= 0;
-            spr_pal_ofs_low_1 <= 0;
-        end 
-        
-        if ( spr_pal_ofs_hi_2 > 0) begin
-            fg_pal_ofs_hi  <= spr_pal_ofs_hi_2;
-            fg_pal_ofs_low <= spr_pal_ofs_low_2;
+        if ( spr_pal_ofs_hi > 0 && ( h > 16 || ~user_flip ) ) begin
+            // the h > 16 condition is a screen flip hack.  not in original hardware
+            fg_pal_ofs_hi  <= spr_pal_ofs_hi;
+            fg_pal_ofs_low <= spr_pal_ofs_low;
             draw <= 1;
         end else if ( fg !== 0 || fg_attr[6] == 1 ) begin
             // fg
@@ -943,7 +971,7 @@ always @ (posedge clk_10M) begin
             draw <= 0;
         end
 
-        if ( h[2:0] !== 2 ) begin
+        if ( h[2:0] !== 7 ) begin
             // unless we are loading the shift register then shift it.
             fg_shift_0 <= { fg_shift_0[0], fg_shift_0[7:1] };
             fg_shift_1 <= { fg_shift_1[0], fg_shift_1[7:1] };
@@ -953,49 +981,43 @@ always @ (posedge clk_10M) begin
             
         end
     
-        case ( { flip_screen, h[2:0] } )
-            0:  begin
+        // load / shift tiles
+        case ( { cocktail_flip ^ user_flip, h[2:0] } )
+            5:  begin
                     fg_char_index <= { v[7:3] , h[7:3] }  ; // 32*32 characters
                     bg_char_index <= { bg_scroll[7:3] , h[7:3] }  ; // 32*32 characters
                 end
-            1:  begin
+            6:  begin
                     fg_bitmap_addr <= { gfx_fg_attr_data[7], gfx_fg_tile_data, v[2:0] };
                     bg_bitmap_addr <= { gfx_bg_attr_data[7], gfx_bg_tile_data, bg_scroll[2:0] };
                 end
-            2:  begin 
+            7:  begin 
+                    // latched by N9/P9 & U9 & S9 on h[2:0] == 111 R6 creates latch clock
                     fg_shift_0 <= u8_data;
                     fg_shift_1 <= s8_data;
             
                     bg_shift_0 <= n8_data ;
                     bg_shift_1 <= r8_data ;
                     
-                    // these are good for the width of the tile
-                    fg_tile <= { gfx_fg_attr_data[7], gfx_fg_tile_data };
                     fg_attr <= gfx_fg_attr_data;
-                    
-                    bg_tile <= { gfx_bg_attr_data[7], gfx_bg_tile_data };
                     bg_attr <= gfx_bg_attr_data; 
                 end
-            8:  begin
+            13:  begin
                     fg_char_index <= ~{ v[7:3] , h[7:3] }  ; // 32*32 characters
                     bg_char_index <= ~{ bg_scroll[7:3] , h[7:3] }  ; // 32*32 characters
                 end
-            9:  begin
+            14:  begin
                     fg_bitmap_addr <= { gfx_fg_attr_data[7], gfx_fg_tile_data, ~v[2:0] };
                     bg_bitmap_addr <= { gfx_bg_attr_data[7], gfx_bg_tile_data, ~bg_scroll[2:0] };
                 end
-            10: begin
+            15: begin
                     fg_shift_0 <= { u8_data[0], u8_data[1], u8_data[2], u8_data[3], u8_data[4], u8_data[5], u8_data[6], u8_data[7]} ;
                     fg_shift_1 <= { s8_data[0], s8_data[1], s8_data[2], s8_data[3], s8_data[4], s8_data[5], s8_data[6], s8_data[7]} ;
             
                     bg_shift_0 <= { n8_data[0], n8_data[1], n8_data[2], n8_data[3], n8_data[4], n8_data[5], n8_data[6], n8_data[7]} ;
                     bg_shift_1 <= { r8_data[0], r8_data[1], r8_data[2], r8_data[3], r8_data[4], r8_data[5], r8_data[6], r8_data[7]} ;
 
-                    // these are good for the width of the tile
-                    fg_tile <= { gfx_fg_attr_data[7], gfx_fg_tile_data };
                     fg_attr <= gfx_fg_attr_data;
-                    
-                    bg_tile <= { gfx_bg_attr_data[7], gfx_bg_tile_data };
                     bg_attr <= gfx_bg_attr_data; 
                 end
              
@@ -1011,13 +1033,12 @@ wire [7:0] bg_pal_data_high;
 wire [7:0] bg_pal_data_low;
 
 always @ (posedge clk_5M ) begin
-    if ( ~hbl & ~vbl ) begin
+    if ( ~hbl_hx & ~vbl ) begin // LS32 R2
         if ( draw ) begin
             rgb_comp <= { fg_red[7:4], fg_green[7:4], fg_blue[7:4] };
         end else begin
-            rgb_comp <= {unhandled_addr,8'h00};
+            rgb_comp <=  0;
         end
-
     end else begin
         // vblank / hblank
         rgb_comp <= 0;
@@ -1025,7 +1046,6 @@ always @ (posedge clk_5M ) begin
 end    
 
 reg [15:0] unhandled_addr ;
-
 
 always @ (posedge clk_4M ) begin
     
@@ -1105,7 +1125,7 @@ always @ (posedge clk_4M ) begin
             end
         end else if (cpu_addr == 16'h9800 ) begin         
             if ( wr_n == 0 ) begin
-                flip_screen <= cpu_dout[0];
+                cocktail_flip <= cpu_dout[0];
             end
         end else if (cpu_addr == 16'h9801 ) begin 
             sound1_wr <= ~wr_n;
@@ -1142,16 +1162,39 @@ end
 wire wr_n;
 wire rd_n;
 
+// interupt control 
+// the irq should be clocked by the risign vbl and cleared by
+// IORQ_n and M1_n both low for Z80 IRQ ack, 
+// by the interrupt request clear signal from the video gen, 
+// or by a 555 watchdog.  This should be fixed.
+
+wire IORQ_n;
+wire M1_n;
+
+reg prev_vbl = 0;
 reg vert_int_n;
+
+//always @ (posedge clk_4M ) begin
+//    prev_vbl <= vbl;
+//    if ( prev_vbl == 0 && vbl == 1 ) begin
+//        vert_int_n <= 0;
+//    end else if ( ( IORQ_n == 0 && M1_n == 0 ) || ( vbl == 0 && v == 32 ) ) begin
+//        // 
+//        vert_int_n <= 1;
+//    end
+//end
+
 always @ (posedge clk_4M ) begin
-    vert_int_n <= (v !== 200 ) ;
+    prev_vbl <= vbl;
+    vert_int_n <= ( v !== 208 ) ;
 end
-    
+
+   
 T80pa u_cpu(
     .RESET_n    ( ~reset ),
     .CLK        ( clk_8M ),
-    .CEN_p      ( clk_4M ),     // & pause
-    .CEN_n      ( 1'b1     ),
+    .CEN_p      ( clk_4M ),     
+    .CEN_n      ( 1'b1 ),
     .WAIT_n     ( ~pause ),
     .INT_n      ( vert_int_n ),  
     .NMI_n      ( 1'b1     ),
@@ -1166,8 +1209,8 @@ T80pa u_cpu(
     .DIR        ( 212'b0   ),
     .OUT0       ( 1'b0     ),
     .RFSH_n     (),
-    .IORQ       (),
-    .M1_n       (),
+    .IORQ_n     (IORQ_n),
+    .M1_n       (M1_n),
     .BUSAK_n    (),
     .HALT_n     (),
     .MREQ_n     (),

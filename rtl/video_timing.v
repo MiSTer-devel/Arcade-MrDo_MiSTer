@@ -1,84 +1,163 @@
 
 module video_timing (
-    input clk_pix,   // pixel clock
+    input clk,   // pixel clock
     input reset,     // reset
 
-    output reg [7:0]v,  // { vd_, vc_, vb_, va_, vd, vc, vb, va }  _ == backtick
-    output reg [7:0]h,  // { hd_, hc_, hb_, ha_, hd, hc, hb, ha }  _ == backtick
+    output     [7:0] v,  // { vd', vc', vb', va', vd, vc, vb, va }  
+    output     [7:0] h,  // { hd', hc', hb', ha', hd, hc, hb, ha }  
 
-    output reg hbl,
-//    output reg hx,
-    output reg hff,
+    output     hbl,
+    output     hbl_n,    
+    output     hff,
+    output     hx,
+    output     hx_n,
     output reg vbl,
-    
-    output reg hsync,     // horizontal sync
-    output reg vsync,     // vertical sync
-    output reg de         // data enable (low in blanking interval)
+    output reg vbl_n,
+    output reg vbls,
+    output reg vbls_n,
+    output reg hsync,     
+    output reg vsync   
     );
     
-// sync is enable low
-// screen.set_raw(VIDEO_CLOCK/4, 312, 8, 248, 262, 32, 224);
-
 // horizontal timings
-parameter HBLANK_START  = 256;
-parameter HSYNC_START   = 264;
-parameter HSYNC_END     = 304;
-parameter HBLANK_END    = 8;
-parameter H_TOTAL       = 312;
+//parameter HBLANK_START  = 256;
+//parameter HSYNC_START   = 264;
+//parameter HSYNC_END     = 304;
+//parameter HBLANK_END    = 8;
+//parameter H_TOTAL       = 312;
 
 // vertical timings
-parameter VBLANK_START = 224;
-parameter VSYNC_START  = 256;
-parameter VSYNC_END    = 258;
-parameter VBLANK_END   = 32;
-parameter V_TOTAL      = 262;
-
-reg [9:0] sx;
-reg [9:0] sy;
+//parameter VBLANK_START = 224;
+//parameter VSYNC_START  = 256;
+//parameter VSYNC_END    = 258;
+//parameter VBLANK_END   = 32;
+//parameter V_TOTAL      = 262;
 
 
-always @ (posedge clk_pix) begin
-    hsync <= ~(sx >= HSYNC_START && sx < HSYNC_END);  // invert: negative polarity
-    vsync <= ~(sy >= VSYNC_START && sy < VSYNC_END);  // invert: negative polarity
-    
-    de <=  1;
+// video syncs for mister.  not used ny mr. do
+always @ (posedge clk) begin
+    if ( hx == 1 && h == 8'd208 ) begin
+        hsync <= 0;
+    end else if ( hx == 1 && h == 8'd248 ) begin
+        hsync <= 1;
+    end
+
+    if ( vbl == 1 && v == 8'd232 ) begin
+        vsync <= 0;
+    end else if ( vbl == 1 && v == 8'd234 ) begin
+        vsync <= 1;
+    end
 end
 
-always @ (posedge clk_pix) begin
-    if (reset) begin
-        sx <= 0;
-        sy <= 0;
-        hbl <= 1;
-        vbl <= 0;
-    end else begin
-        if ( sx < H_TOTAL ) begin
-            sx <= sx + 1;
-        end else begin
-            sx <= 0;
-            if ( sy < V_TOTAL ) begin
-                sy <= sy + 1;
-            end else begin
-                sy <= 0;
-            end
-        end
+reg k3a_q,k3b_q;
+
+wire j3_ca,h3_ca,v4_ca,w4_ca;
+
+wire g3_6 ;
+assign g3_6 = ~( v[5] & v[6] & v[7] );
+assign hff = w4_ca;
+
+
+assign hx = k3a_q;
+assign hx_n = ~k3a_q;
+
+
+ttl161 v4 (
+    .clk(clk),
+    .clear_n(1),
+    .load_n(~w4_ca),
+    .t(1),
+    .p(1),
+    .d({hx_n,3'b000}),
+    .q(h[3:0]),
+    .ca(v4_ca)
+    );
+
+ttl161 w4 (
+    .clk(clk),
+    .clear_n(1),
+    .load_n(~w4_ca),
+    .t(v4_ca),
+    .p(v4_ca),
+    .d({hx_n,hx_n,2'b00}),
+    .q(h[7:4]),
+    .ca(w4_ca)
+    );
+    
+always @ ( posedge clk ) begin
+    if ( w4_ca == 1 ) begin
+        k3a_q <= ~k3a_q;
     end
     
-    case ( sx )
-        HBLANK_START-1: hff <= 1;
-        HBLANK_START:   hbl <= 1;
-        HBLANK_END-1:   hff <= 0;
-        HBLANK_END:     hbl <= 0;
-    endcase
-    
-    case ( sy )
-        VBLANK_START:   vbl <= 1;
-        VBLANK_END:     vbl <= 0;
-    endcase
-    
-    h <= sx[7:0];
-    v <= sy[7:0];
-    
 end
-  
+    
+ttl74 w9_a (
+  .clk(h[3]),
+  .preset_n(~(hx & ~h[3])),
+  .clear_n(1),
+  .d(hx),
+  .q(hbl),
+  .q_n(hbl_n)
+  );
+    
+ttl161 j3 (
+    .clk(hx),
+    .clear_n(1),
+    .load_n(~h3_ca),
+    .t(1),
+    .p(1),
+    .d({~k3b_q,1'b0,~k3b_q,1'b0} ),
+    .q(v[3:0]),
+    .ca(j3_ca)
+    );
+
+ttl161 h3 (
+    .clk(hx),
+    .clear_n(1),
+    .load_n(~h3_ca),
+    .t(j3_ca),
+    .p(j3_ca),
+    .d({~k3b_q,~k3b_q,~k3b_q,k3b_q}),
+    .q(v[7:4]),
+    .ca(h3_ca)
+    );
+
+reg prev_hx;    
+reg prev_h3_ca;
+
+always @ ( posedge clk ) begin
+    prev_hx <= hx;
+
+    if ( prev_hx == 1 && hx == 0 ) begin
+        prev_h3_ca <= h3_ca;
+    end
+    
+    // rising edge of hx_n
+    if ( prev_h3_ca == 1 && prev_hx == 1 && hx == 0 ) begin
+        k3b_q <= ~k3b_q;
+    end
+    
+    if ( ~g3_6 ) begin // G3 Nand
+        // preset
+        vbl <= 1 ;
+        vbl_n <= 0;
+        vbls <= 1 ;
+        vbls_n <= 0;
+    end else begin
+        // rising edge of hx and rising edge of v[5]
+        if ( prev_hx == 0 && hx == 1 && v[5:4] == 2'b10 ) begin
+            vbl <= k3b_q ;
+            vbl_n <= ~k3b_q;
+        end
+        
+        // rising edge of hx and rising edge of v[3]
+        if ( prev_hx == 0 && hx == 1 && v[3:2] == 2'b10 ) begin
+            vbls <= k3b_q ;
+            vbls_n <= ~k3b_q;
+        end
+    end
+end
+
 
 endmodule
+    
