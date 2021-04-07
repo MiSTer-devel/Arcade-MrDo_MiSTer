@@ -1235,7 +1235,7 @@ assign AUDIO_R = {sound_mix[8:1],sound_mix[8:1]};
 
 assign AUDIO_S = 0; // unsigned PCM
 
-wire sound_mask = pause ? 4'b0000 : 4'b1111;
+wire [3:0] sound_mask = pause ? 4'b0000 : 4'b1111;
 
 // sound clock, cpu clock, chip select, write enable, data, mask, output )
 SN76496 sound1( clk_4M, clk_4M, reset, sound1_en, sound1_wr, cpu_dout, sound_mask, sound1_out );
