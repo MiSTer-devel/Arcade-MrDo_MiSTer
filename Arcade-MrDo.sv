@@ -193,6 +193,7 @@ assign BUTTONS = 0;
 wire [1:0] aspect_ratio = status[2:1];
 wire orientation = status[3];
 wire [2:0] scan_lines = status[6:4];
+wire [3:0] hs_offset = status[11:8];
 
 assign VIDEO_ARX = (!aspect_ratio) ? (orientation  ? 8'd4 : 8'd3) : (aspect_ratio - 1'd1);
 assign VIDEO_ARY = (!aspect_ratio) ? (orientation  ? 8'd3 : 8'd4) : 12'd0;
@@ -200,6 +201,7 @@ assign VIDEO_ARY = (!aspect_ratio) ? (orientation  ? 8'd3 : 8'd4) : 12'd0;
 `include "build_id.v" 
 localparam CONF_STR = {
 	"A. Mr Do!;;",
+	"O8B,CRT H adjust,0,+1,+2,+3,+4,+5,+6,+7,-8,-7,-6,-5,-4,-3,-2,-1;",
 	"O12,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"O3,Orientation,Vert,Horz;",
 	"O46,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
@@ -436,6 +438,8 @@ wire rom_download = ioctl_download && !ioctl_index;
 video_timing video_timing (
     .clk(~clk_5M),   // pixel clock
     .reset(reset),     // reset
+
+    .hs_offset(hs_offset),
 
     .h(h),  // { hd', hc', hb', ha', hd, hc, hb, ha }  
     .v(v),  // { vd', vc', vb', va', vd, vc, vb, va }  

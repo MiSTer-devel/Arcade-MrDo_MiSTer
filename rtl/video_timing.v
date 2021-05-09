@@ -3,6 +3,8 @@ module video_timing (
     input clk,   // pixel clock
     input reset,     // reset
 
+    input      [3:0] hs_offset,
+
     output     [7:0] v,  // { vd', vc', vb', va', vd, vc, vb, va }  
     output     [7:0] h,  // { hd', hc', hb', ha', hd, hc, hb, ha }  
 
@@ -36,16 +38,14 @@ module video_timing (
 
 // video syncs for mister.  not used ny mr. do
 always @ (posedge clk) begin
-    if ( hx == 1 && h == 8'd208 ) begin
-        hsync <= 0;
-    end else if ( hx == 1 && h == 8'd248 ) begin
+    if ( hx == 1 && h == 8'd216 + $signed(hs_offset) ) begin
         hsync <= 1;
-    end
-
-    if ( vbl == 1 && v == 8'd232 ) begin
-        vsync <= 0;
-    end else if ( vbl == 1 && v == 8'd234 ) begin
-        vsync <= 1;
+        if ( ~k3b_q ) begin
+            if ( v == 8'd251 ) vsync <= 1;
+            if ( v == 8'd254 ) vsync <= 0;
+        end
+    end else if ( hx == 1 && h == 8'd239 + $signed(hs_offset) ) begin
+        hsync <= 0;
     end
 end
 
