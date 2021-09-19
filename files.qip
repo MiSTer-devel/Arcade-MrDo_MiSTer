@@ -16,4 +16,5 @@ set_global_assignment -name QIP_FILE rtl/ram_dp_1k.qip
 set_global_assignment -name QIP_FILE rtl/rom_8k.qip
 set_global_assignment -name QIP_FILE rtl/rom_32b.qip
 set_global_assignment -name QIP_FILE rtl/rom_4k.qip
-set_global_assignment -name SYSTEMVERILOG_FILE "rtl/hiscore.sv"
+set_global_assignment -name VERILOG_FILE "rtl/hiscore.v"
+set_global_assignment -name VERILOG_FILE "rtl/pause.v"
