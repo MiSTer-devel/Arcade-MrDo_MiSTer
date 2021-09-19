@@ -61,8 +61,8 @@
 	<rom index="2"></rom>
 	<rom index="3" md5="none">
     	<part>
-    	00 00 00 FF 00 FF 00 02 00 02 00 02 70 FF 00 00
-    	00 00 E0 17 64 01 00 00
+    	00 00 0F FF 00 16 00 02 00 02 00 02 70 FF 02 00
+    	00 00 E0 17 00 64 01 00
     	</part>
   	</rom>
 	<rom index="4"></rom>
