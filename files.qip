@@ -18,3 +18,6 @@ set_global_assignment -name QIP_FILE rtl/rom_32b.qip
 set_global_assignment -name QIP_FILE rtl/rom_4k.qip
 set_global_assignment -name VERILOG_FILE "rtl/hiscore.v"
 set_global_assignment -name VERILOG_FILE "rtl/pause.v"
+set_global_assignment -name VERILOG_FILE "rtl/secret_pal.v"
+
+
