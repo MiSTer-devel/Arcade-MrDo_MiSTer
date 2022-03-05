@@ -1149,8 +1149,8 @@ wire [7:0] u001_dout ;
 secret_pal u001
 (
 	.clk( gfx_fg_ram0_wr | gfx_fg_ram1_wr),
-	.din( cpu_dout ),
-	.dout( u001_dout )
+	.i( cpu_dout ),
+	.o( u001_dout )
 );
 
 

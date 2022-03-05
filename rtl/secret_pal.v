@@ -1,77 +1,76 @@
 
 // PAL16R6 (IC U001)
 
-// no feedback used so a 128 byte lookup table could work too.
-
-module secret_pal
-(
-	input        clk,
-	input  [7:0] din,
-	output [7:0] dout
+module secret_pal (
+    input           clk,
+    input  [9:2]    i,
+    output [19:12]  o
 );
 
-wire    [9:2]   i ;
-reg     [19:12] r ;
+// this clock is really the folling edge of TRAM WE (8000-8fff)
+// the WE is latched on WAIT RESET2 ( vbl or low 3 bits of horz counter )
+// the latch is preset by HC (bit 3) of horz counter
+// output is anded with $7e before comparing to regster HL in the z80 code
 
-// data bus d7 (msb) is pin 2 so reverse input bit order
-assign i =  {din[0],din[1],din[2],din[3],din[4],din[5],din[6],din[7]};  
+// write tram -> read u001
 
-assign dout = r ;
+// level start
+//a5    1010 0101   ->  40  0100 0000
+//cd    1100 1101   ->  16  0001 0110
+//36    0011 0110   ->  7a  0111 1010
+//6f    0110 1111   ->  3e  0011 1110
 
-wire t1 =   i[2] & ~i[3] &  i[4] & ~i[5] & ~i[6] & ~i[8] &  i[9] ;
-wire t2 =  ~i[2] & ~i[3] &  i[4] &  i[5] & ~i[6] &  i[8] & ~i[9] ;
-wire t3 =   i[2] &  i[3] & ~i[4] & ~i[5] &  i[6] & ~i[8] &  i[9] ;
-wire t4 =  ~i[2] &  i[3] &  i[4] & ~i[5] &  i[6] &  i[8] &  i[9] ;
+// extra scene
+//a5    1010 0101   ->  40  0100 0000
+//c2    1100 0010   ->  4c  0100 1100
+//36    0011 0110   ->  2a  0010 1010
+//6f    0110 1111   ->  66  0110 0110
 
+reg method ;
 
-always @(posedge clk) begin
+assign o[19] = 0;
+assign o[12] = 0;
+assign o[18:13] = r[6:1];
 
-    // pal output is registered clocked by pin 1 connected to (TRAM WE) $8800-$8fff
-    // pal OE is enabled by reading address $9803 (SECRE)
-    
-    r[12] <= 0;
-    
-    //  /rf13 := i2 & /i3 & i4 & /i5 & /i6 & /i8 & i9
-    r[13] <= ~ ( t1 );
-    
-    //  /rf14 := /i2 & /i3 & i4 & i5 & /i6 & i8 & /i9 + i2 & /i3 & i4 & /i5 & /i6 & /i8 & i9
-    r[14] <= ~ ( t2 | t1 ); 
+reg [7:0] r;
 
-    //  /rf15 := i2 & i3 & /i4 & /i5 & i6 & /i8 & i9 + i2 & /i3 & i4 & /i5 & /i6 & /i8 & i9
-    r[15] <= ~ ( t3 | t1 ); 
-
-    //  /rf16 := i2 & /i3 & i4 & /i5 & /i6 & /i8 & i9
-    r[16] <= ~ ( t1 );
-    
-    // /rf17 := i2 & i3 & /i4 & /i5 & i6 & /i8 & i9 + i2 & /i3 & i4 & /i5 & /i6 & /i8 & i9
-    r[17] <= ~ ( t3 | t1 ); 
-    
-    //  /rf18 := /i2 & i3 & i4 & /i5 & i6 & i8 & i9   + i2 & i3 & /i4 & /i5 & i6 & /i8 & i9
-    r[18] <= ~ ( t4 | t3 ); 
-    
-    r[19] <= 0;
-    
+always @ (posedge clk) begin
+    if (          i[9:6] == 4'b1010 ) begin
+        r <= 8'h40;
+    end else if ( i[8:5] == 4'b1001 ) begin
+        r <= 8'h16;
+        method <= 0;
+    end else if ( i[8:5] == 4'b1000 ) begin
+        r <= 8'h4c;
+        method <= 1;
+    end else if ( i[9:6] == 4'b0011 && method == 0 ) begin
+        r <= 8'h7a;
+    end else if ( i[9:6] == 4'b0011 && method == 1 ) begin
+        r <= 8'h2a;
+    end else if ( i[9:6] == 4'b0110 && method == 0 ) begin
+        r <= 8'h3e;
+    end else if ( i[9:6] == 4'b0110 && method == 1 ) begin
+        r <= 8'h66;
+    end
+        
+    if ( i == 8'ha5 ) begin
+        r <= 8'h40;
+    end else if ( i == 8'hcd ) begin
+        r <= 8'h16;
+        method <= 0;
+    end else if ( i == 8'hc2 ) begin
+        r <= 8'h4c;
+        method <= 1;
+    end else if ( i == 8'h36 && method == 0 ) begin
+        r <= 8'h7a;
+    end else if ( i == 8'h36 && method == 1 ) begin
+        r <= 8'h2a;
+    end else if ( i == 8'h6f && method == 0 ) begin
+        r <= 8'h3e;
+    end else if ( i == 8'h6f && method == 1 ) begin
+        r <= 8'h66;
+    end
 end
 
 endmodule
-/*
 
-/rf13 := i2 & /i3 & i4 & /i5 & /i6 & /i8 & i9
-rf13.oe = OE
-
-/rf14 := /i2 & /i3 & i4 & i5 & /i6 & i8 & /i9 + i2 & /i3 & i4 & /i5 & /i6 & /i8 & i9
-rf14.oe = OE
-
-/rf15 := i2 & i3 & /i4 & /i5 & i6 & /i8 & i9  + i2 & /i3 & i4 & /i5 & /i6 & /i8 & i9
-rf15.oe = OE
-
-/rf16 := i2 & /i3 & i4 & /i5 & /i6 & /i8 & i9
-rf16.oe = OE
-
-/rf17 := i2 & i3 & /i4 & /i5 & i6 & /i8 & i9  + i2 & /i3 & i4 & /i5 & /i6 & /i8 & i9
-rf17.oe = OE
-
-/rf18 := /i2 & i3 & i4 & /i5 & i6 & i8 & i9   + i2 & i3 & /i4 & /i5 & i6 & /i8 & i9
-rf18.oe = OE
-
-*/
